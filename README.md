@@ -1,4 +1,3 @@
-# Education-poicy-R-Topic-Modelling
 # Structural Topic Modeling (STM) for Text-Coding: PRC TVET Assessment Policies
 
 > A machine-learning workflow that applies **Structural Topic Modeling (STM)** to analyze assessment policy documents in China's **technical and vocational education and training (TVET)** context.
