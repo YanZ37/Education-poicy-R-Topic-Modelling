@@ -1,0 +1,129 @@
+# Load required libraries
+library(stm)
+library(stminsights) # A Shiny app that enables interpretation and visualisation of STM
+library(dplyr)
+
+# Define custom stop words
+customstopwords <- c("assess","evaluation","exam","…")
+
+# Process texts
+processed <- textProcessor(
+  documents = tdp$text,   # <-- fixed from tdp$text*
+  metadata = tdp,
+  customstopwords = customstopwords
+)
+meta  <- processed$meta
+vocab <- processed$vocab
+docs  <- processed$documents
+# *the column in the dataset that contains the texts to be analysed
+
+# Prepare documents for analysis
+out <- prepDocuments(docs, vocab, meta, lower.thresh = 5)
+docs  <- out$documents
+vocab <- out$vocab
+meta  <- out$meta
+
+# Search for models with topic prevalence covariate on fixed numbers of topics
+model_2 <- stm(
+  out$documents, out$vocab,
+  K = 2,
+  prevalence = ~discipline,
+  data = meta,
+  max.em.its = 100,
+  seed = 123
+) # Copy the code and increase K to search for models
+
+# Choose which model you want to inspect/plot
+model_select <- model_2
+
+# Save the data
+save.image('stm.RData')
+
+# Visualise the STM output in a Shiny app
+run_stminsights()
+
+# Select "stm.RData" on R working directory
+
+# Print semantic coherence values
+semanticCoherence(model_select, out$documents) # Change the model name to print the values across numbers of topics
+
+# Print exclusivity values
+exclusivity(model_select) # Change the model name to print the values across numbers of topics
+
+# Visualise semantic coherence and exclusivity values for topics
+topicQuality(model_select, out$documents)
+
+# Print topic words
+print(sageLabels(model_select, n = 30))
+
+# Print topic proportions
+proportions_table <- make.dt(model_select)
+proportions_table %>%
+  dplyr::summarise(dplyr::across(dplyr::everything(), mean, na.rm = TRUE))
+
+# Visualise a model summary incl. topic labels, highly probable words and topic proportions
+# NOTE: topic.names length must equal K for model_select
+plot(
+  model_select, type = "summary", xlim = c(0,1), n = 10,
+  topic.names = c("Topic 1 Internship-Based Assessments:", "Topic 2 Formative Assessments:")
+)
+
+# Visualise MAP document-topic proportions
+plot(
+  model_select, type = "hist",
+  topic.names = c("Topic 1 Internship-Based Assessments:", "Topic 2 Formative Assessments:")
+)
+
+# Extract the first 200 characters of the text column
+shortdoc <- substr(out$meta$text, 1, 200)
+
+# Print the documents for the selected topics
+findThoughts(model_select, texts = shortdoc, topics = 1, n = 100)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Estimate the difference on topic prevalence among covariate levels
+# Prefer formula specifying topics explicitly (e.g., 1:K)
+stm_ee <- estimateEffect(
+  1:model_select$settings$dim$K ~ discipline,
+  stmobj = model_select,
+  metadata = out$meta,
+  uncertainty = "Global"
+)
+
+# Visualise the difference on topic prevalence among covariate levels
+plot(
+  x = stm_ee,
+  covariate = "discipline",
+  topic = c(1),
+  model = model_select,
+  method = "pointestimate",
+  labeltype = "custom",
+  custom.labels = c("CS", "Eng", "FS", "HS"),
+  main = "Topic 1 Internship-Based Assessments"
+)
+
+# Estimate a model with topic content covariate
+model <- stm(
+  out$documents, out$vocab, K = 10,
+  content = ~discipline,
+  data = meta,
+  max.em.its = 100,
+  seed = 123
+)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Visualise the difference on topic content between covariate pairs
+# Ensure the factor levels you reference (2,1) exist and match plabels
+plot(
+  model,
+  type = "perspectives",
+  n = 10,
+  topics = 1,
+  covarlevels = c(2,1),
+  plabels = c("Engineering", "Computer Science"),
+  main = "Topic 1 Internship-Based Assessments"
+)
